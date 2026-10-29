@@ -20,11 +20,11 @@ const WAVE_FRAMES = (WAVE_MS / 1000) * RECORD_FPS * 1.5;
 /** Re-throw (within this much time) for a tumble whose length is near WAVE_FRAMES, so the fit barely shows. */
 const RETHROW_MS = 50;
 /** The pause between a wave landing and its dice exploding. */
-const EXPLODE_PAUSE_MS = 60;
+const EXPLODE_PAUSE_MS = 200;
 /** How long leftover dice take to fade before the next roll. */
 const CLEAR_MS = 250;
 /** How long an exploding die shakes while its circle is scribbled, before it bursts. */
-const CHARGE_MS = 300;
+const CHARGE_MS = 490;
 
 export type DieChain = { sides: number; chain: number[] };
 export type StageRoll = { color: string; dice: DieChain[] };

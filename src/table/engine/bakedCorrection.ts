@@ -47,9 +47,8 @@ export const MIN_FRAMES = 30;
  * exactly flat and target-up whatever pose the die was in, and the top-down orthographic camera
  * makes the leftover height invisible.
  *
- * Do not read this as "the tumble is 200/60 ≈ 3.3s" — {@link ./DiceStage} plays the buffer back
- * at `PLAYBACK_RATE` recorded frames per real frame, so the wall-clock ceiling is that over the
- * rate. Raise this only together with a re-measure; lowering it further starts truncating dice
+ * dice: this isn't the tumble's on-screen length. The stage (`../stage.ts`) fits every wave to
+ * a fixed `WAVE_MS`, re-throwing to find a recording near that length. Raise this only together with a re-measure; lowering it further starts truncating dice
  * that are still visibly moving.
  */
 export const SIM_BUDGET_FRAMES = 300;

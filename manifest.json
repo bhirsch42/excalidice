@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Excalidice",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "3D dice for Excalidraw, with exploding dice. Everyone in a live collaboration sees the same rolls.",
   "homepage_url": "https://github.com/bhirsch42/excalidice",
   "icons": {

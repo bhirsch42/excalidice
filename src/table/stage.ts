@@ -9,9 +9,22 @@ import { numeralAtlasFor } from "./engine/numeralTexture";
 /** Die circumradius in world units; must match what the physics pre-roll is given. */
 const RADIUS = 1.5;
 const RECORD_FPS = 60;
-/** Recorded frames played per 1/60s of real time. */
-const PLAYBACK_RATE = 1.5;
-const CHARGE_MS = 650;
+/**
+ * Every wave of dice takes exactly this long to land, on every machine, so peers stay in step
+ * however their physics happened to tumble. Each wave's recording is stretched or squeezed to
+ * fit, so this is also the natural pace: about 1.5x the recorded speed for a typical tumble.
+ */
+const WAVE_MS = 1300;
+/** Recorded frames that fit WAVE_MS at the natural pace. */
+const WAVE_FRAMES = (WAVE_MS / 1000) * RECORD_FPS * 1.5;
+/** Re-throw (within this much time) for a tumble whose length is near WAVE_FRAMES, so the fit barely shows. */
+const RETHROW_MS = 50;
+/** The pause between a wave landing and its dice exploding. */
+const EXPLODE_PAUSE_MS = 200;
+/** How long leftover dice take to fade before the next roll. */
+const CLEAR_MS = 250;
+/** How long an exploding die shakes while its circle is scribbled, before it bursts. */
+const CHARGE_MS = 490;
 
 export type DieChain = { sides: number; chain: number[] };
 export type StageRoll = { color: string; dice: DieChain[] };
@@ -47,6 +60,9 @@ const easeOut = (t: number) => 1 - (1 - t) ** 3;
 /** Recorded frames a clone takes to grow out of its parent die. */
 const EMERGE_FRAMES = 14;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleepUntil = (at: number) => sleep(Math.max(0, at - performance.now()));
+/** The stagger between dice exploding in the same wave. */
+const EXPLODE_STAGGER_MS = 90;
 
 export class TableStage {
   private readonly renderer: THREE.WebGLRenderer;
@@ -63,10 +79,11 @@ export class TableStage {
   private dice: Live[] = [];
   private tweens: Tween[] = [];
   private waveDone: (() => void) | null = null;
+  private waveStart = 0;
+  private waveFrames = 0;
 
   private raf = 0;
   private last = 0;
-  private frameAccum = 0;
   private queue: { roll: StageRoll; resolve: () => void }[] = [];
   private playing = false;
   private readonly viewHalfMin: number;
@@ -165,41 +182,58 @@ export class TableStage {
     this.playing = false;
   }
 
+  /**
+   * Every step runs on a schedule fixed from the moment the roll starts, so a late frame or timer
+   * delays only itself: the next step still starts on time, and the roll lasts as long on a slow
+   * machine as on a fast one.
+   */
   private async play(roll: StageRoll) {
-    await this.clearTable();
+    let at = performance.now();
+    await this.clearTable(at);
+    at += CLEAR_MS;
     this.onThrow?.();
     const color = new THREE.Color(roll.color);
     // wave k throws the k-th link of every chain that reached it; links after the first are
     // clones leaping out of the die that exploded
+    const specsFor = (wave: { i: number; parent?: Live }[], k: number) =>
+      wave.map((w) => {
+        const p = w.parent?.rec.buffer.at(-1)!.pos;
+        return { sides: roll.dice[w.i]!.sides, target: roll.dice[w.i]!.chain[k]!, from: p && ([p[0], p[2]] as [number, number]), emerge: p };
+      });
     let wave: { i: number; parent?: Live }[] = roll.dice.map((_, i) => ({ i }));
-    for (let k = 0; wave.length; k++) {
-      const obstacles = this.dice.map((d) => ({ sides: d.sides, pos: d.rec.buffer.at(-1)!.pos, quat: shownQuatAt(d.rec, d.rec.buffer.length - 1) }));
-      const thrown = await this.throwWave(
-        wave.map((w) => {
-          const p = w.parent?.rec.buffer.at(-1)!.pos;
-          return { sides: roll.dice[w.i]!.sides, target: roll.dice[w.i]!.chain[k]!, from: p && ([p[0], p[2]] as [number, number]), emerge: p };
-        }),
-        obstacles,
-        color,
-      );
+    let specs = specsFor(wave, 0);
+    let recorded = this.record(specs);
+    for (let k = 0; ; k++) {
+      const thrown = await this.playWave(recorded, specs, color, at);
+      at += WAVE_MS;
       const exploding = wave.map((w, j) => ({ i: w.i, die: thrown[j]! })).filter((w) => roll.dice[w.i]!.chain.length > k + 1);
       if (!exploding.length) break;
-      await sleep(200);
-      await Promise.all(exploding.map((e, n) => sleep(n * 90).then(() => this.explode(e.die))));
+      // simulate the clones during the pause, so a slow machine doesn't fall behind
       wave = exploding.map((e) => ({ i: e.i, parent: e.die }));
+      specs = specsFor(wave, k + 1);
+      recorded = this.record(specs);
+      at += EXPLODE_PAUSE_MS;
+      await sleepUntil(at);
+      await Promise.all(exploding.map((e, n) => this.explode(e.die, at + n * EXPLODE_STAGGER_MS)));
+      at += (exploding.length - 1) * EXPLODE_STAGGER_MS + CHARGE_MS;
     }
   }
 
-  private async clearTable() {
-    if (!this.dice.length && !this.sketch.hasMarks) return;
+  /** Fade everything off the table. Takes CLEAR_MS even when it's already clear, so machines stay in step. */
+  private async clearTable(start = performance.now()) {
+    if (!this.dice.length && !this.sketch.hasMarks) return sleepUntil(start + CLEAR_MS);
     const dice = this.dice;
     // Shadows ignore a die's opacity, so fade the shadow-catching floor alongside the dice.
     const shadowOpacity = this.shadows.opacity;
-    await this.tween(250, (t) => {
-      for (const d of dice) this.setOpacity(d, 1 - t);
-      this.shadows.opacity = shadowOpacity * (1 - t);
-      this.sketch.fade(1 - t);
-    });
+    await this.tween(
+      CLEAR_MS,
+      (t) => {
+        for (const d of dice) this.setOpacity(d, 1 - t);
+        this.shadows.opacity = shadowOpacity * (1 - t);
+        this.sketch.fade(1 - t);
+      },
+      start,
+    );
     this.sketch.clearMarks();
     for (const d of dice) this.release(d);
     this.dice = this.dice.filter((d) => !dice.includes(d));
@@ -208,12 +242,24 @@ export class TableStage {
     this.kick();
   }
 
-  private throwWave(
-    specs: { sides: number; target: number; from?: [number, number]; emerge?: readonly [number, number, number] }[],
-    obstacles: Parameters<typeof recordThrowBatch>[1]["obstacles"],
-    color: THREE.Color,
-  ): Promise<Live[]> {
-    const recorded = recordThrowBatch(specs, { bounds: this.bounds, radius: RADIUS, obstacles });
+  /**
+   * Simulate a wave of throws, around the dice already on the table. Throws are random, so this
+   * re-throws for a little while to find a tumble near WAVE_FRAMES long.
+   */
+  private record(specs: { sides: number; target: number; from?: [number, number] }[]): RecordedDie[] {
+    const obstacles = this.dice.map((d) => ({ sides: d.sides, pos: d.rec.buffer.at(-1)!.pos, quat: shownQuatAt(d.rec, d.rec.buffer.length - 1) }));
+    const miss = (rec: RecordedDie[]) => Math.abs(Math.max(...rec.map((r) => r.buffer.length)) - WAVE_FRAMES);
+    const started = performance.now();
+    let best = recordThrowBatch(specs, { bounds: this.bounds, radius: RADIUS, obstacles });
+    while (miss(best) > WAVE_FRAMES * 0.2 && performance.now() - started < RETHROW_MS) {
+      const next = recordThrowBatch(specs, { bounds: this.bounds, radius: RADIUS, obstacles });
+      if (miss(next) < miss(best)) best = next;
+    }
+    return best;
+  }
+
+  /** Play a recorded wave over exactly WAVE_MS from `start`; resolves with its dice once they've landed. */
+  private playWave(recorded: RecordedDie[], specs: { sides: number; emerge?: readonly [number, number, number] }[], color: THREE.Color, start: number): Promise<Live[]> {
     const live = recorded.map((rec, i) => {
       const d = this.buildDie(rec.geometry, color);
       const die: Live = { sides: specs[i]!.sides, rec, ...d, frame: 0, done: false, emerge: specs[i]!.emerge };
@@ -222,6 +268,8 @@ export class TableStage {
       this.dice.push(die);
       return die;
     });
+    this.waveFrames = Math.max(...recorded.map((r) => r.buffer.length - 1));
+    this.waveStart = start;
     return new Promise((resolve) => {
       this.waveDone = () => resolve(live);
       this.kick();
@@ -233,14 +281,18 @@ export class TableStage {
    * then action lines pop and little outlined shapes fly. The die stays where it is, and the
    * circle stays round it, marking it as exploded; the caller throws its clone out of it.
    */
-  private async explode(die: Live) {
+  private async explode(die: Live, start: number) {
     const [x, y, z] = die.rec.buffer.at(-1)!.pos;
     const ring = this.sketch.circle(x, z);
-    await this.tween(CHARGE_MS * 0.75, (t) => {
-      ring.progress = easeOut(t);
-      const shake = 0.12 * t;
-      die.mesh.position.set(x + Math.sin(t * 70) * shake, y, z + Math.cos(t * 55) * shake);
-    });
+    await this.tween(
+      CHARGE_MS,
+      (t) => {
+        ring.progress = easeOut(t);
+        const shake = 0.12 * t;
+        die.mesh.position.set(x + Math.sin(t * 70) * shake, y, z + Math.cos(t * 55) * shake);
+      },
+      start,
+    );
     die.mesh.position.set(x, y, z);
     const [sx, sy] = this.toScreen(x, z);
     const { ink, accent } = this.palette();
@@ -309,9 +361,10 @@ export class TableStage {
     });
   }
 
-  private tween(ms: number, fn: (t: number) => void): Promise<void> {
+  /** Animate `fn` from t = 0 to 1 over `ms`, starting at `start` (which may be in the future). */
+  private tween(ms: number, fn: (t: number) => void, start = performance.now()): Promise<void> {
     return new Promise((resolve) => {
-      this.tweens.push({ start: performance.now(), ms, fn, resolve });
+      this.tweens.push({ start, ms, fn, resolve });
       this.kick();
     });
   }
@@ -319,7 +372,6 @@ export class TableStage {
   private kick() {
     if (this.raf) return;
     this.last = performance.now();
-    this.frameAccum = 0;
     this.raf = requestAnimationFrame(this.tick);
   }
 
@@ -328,13 +380,12 @@ export class TableStage {
     const dt = Math.max(0, Math.min(now - this.last, 1000 / 30));
     this.last = now;
 
-    this.frameAccum += (dt / 1000) * RECORD_FPS * PLAYBACK_RATE;
-    const steps = Math.floor(this.frameAccum);
-    this.frameAccum -= steps;
+    // the wave's place in its recording follows the clock, so it lands at WAVE_MS whatever the frame rate
+    const progress = Math.min(Math.max((now - this.waveStart) / WAVE_MS, 0), 1);
     const moving = this.dice.filter((d) => !d.done);
     for (const d of moving) {
-      d.frame = Math.min(d.frame + steps, d.rec.buffer.length - 1);
-      d.done = d.frame === d.rec.buffer.length - 1;
+      d.frame = Math.min(Math.round(progress * this.waveFrames), d.rec.buffer.length - 1);
+      d.done = progress === 1;
       this.syncMesh(d);
     }
     if (moving.length && this.dice.every((d) => d.done) && this.waveDone) {
@@ -344,7 +395,7 @@ export class TableStage {
     }
 
     for (const tw of [...this.tweens]) {
-      const t = Math.min((now - tw.start) / tw.ms, 1);
+      const t = Math.min(Math.max((now - tw.start) / tw.ms, 0), 1);
       tw.fn(t);
       if (t >= 1) {
         this.tweens.splice(this.tweens.indexOf(tw), 1);

@@ -25,7 +25,7 @@ Everything the developer dashboard asks for, in its order. Upload the zip from `
 
 **Graphic assets**
 
-- Store icon (128×128: 96px art, 16px transparent padding, soft white edge for dark backgrounds): `icons/icon-128.png`
+- Store icon (128×128: 96px art, 16px transparent padding, soft white edge for dark backgrounds): `store/store-icon-128.png` (same as `icons/icon-128.png`)
 - Screenshots (1280×800): `store/screenshot-roll.png`, `store/screenshot-tray.png`
 - Small promo tile (440×280): `store/promo-small.png`
 - Marquee promo tile (1400×560, 24-bit, no alpha): `store/promo-marquee.png`

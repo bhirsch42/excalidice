@@ -4,7 +4,7 @@
 
 <p align="center">3D dice for <a href="https://excalidraw.com">Excalidraw</a>. Roll them across your board, and everyone in your live collaboration sees the same dice land.</p>
 
----
+<p align="center"><img src="store/screenshot-roll.png" alt="Dice rolled across an Excalidraw board, with hand-drawn circles around the dice that exploded"></p>
 
 Excalidice is a Chrome extension that adds a dice tool to excalidraw.com, so you can run a tabletop game, a design-sprint vote or a lunch decision on the same board you're drawing on.
 
@@ -64,6 +64,7 @@ After rebuilding, press the reload icon on the extension's card and reload the E
 | `src/dice/` | Dice notation, exploding rolls, and validation of rolls that arrive from peers. |
 | `src/table/` | The three.js stage and hand-drawn explosion effects. `engine/` holds the physics: a cannon-es pre-roll that bakes in a rotation so each die lands on its decided face. |
 | `art/` | Icon sources. |
+| `store/` | Chrome Web Store screenshots and promo tile. |
 
 To release, bump `version` in `manifest.json` and `package.json`, then push a matching tag (`git tag v0.2.0 && git push --tags`). The release workflow builds the extension and attaches the zip to a GitHub release.
 

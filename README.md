@@ -10,7 +10,7 @@ Excalidice is a Chrome extension that adds a dice tool to excalidraw.com, so you
 
 - **Real 3D dice**: d4, d6, d8, d10, d12 and d20 tumble across the whole board with physics, then sweep away a few seconds after they land.
 - **Any notation**: click a die, or type something like `2d6+1` or `d4 + d8 - 2`.
-- **Exploding dice**, as in *Kids on Bikes*: roll a die's maximum and a new die leaps out of it and rolls again, adding on, as many times as it keeps maxing out. Turn it off with one checkbox.
+- **Exploding dice**, as in *Kids on Bikes*: roll a die's maximum and a new die leaps out of it and rolls again, adding on, as many times as it keeps maxing out. Turn it on with one checkbox; Excalidice remembers your choice for each collaboration room.
 - **In step**: every roll takes the same time on every screen, explosions and all, so everyone sees the result at about the same moment.
 - **Multiplayer with no server**: in a live collaboration, rolls travel over Excalidraw's own end-to-end encrypted channel. Everyone with the extension sees the same results; Excalidraw ignores the messages for anyone without it.
 - **At home on the board**: the tool sits in Excalidraw's toolbar, explosions are drawn in Excalidraw's plain hand-drawn style, it follows light and dark mode, and the dice pan and zoom with the canvas.

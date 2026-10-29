@@ -128,7 +128,7 @@ function mount() {
         <div class="dice">${DICE.map((d) => `<button data-d="${d}">d${d}</button>`).join("")}</div>
         <div class="row">
           <button type="button" class="swatch" title="Your dice color"></button>
-          <label><input type="checkbox" class="explode" checked> Exploding 💥</label>
+          <label><input type="checkbox" class="explode"> Exploding 💥</label>
           <span class="status"></span>
         </div>
         <form class="row custom"><input type="text" class="expr" placeholder="2d6+1, d4+d8…" autocomplete="off"><button class="primary">Roll</button></form>
@@ -262,10 +262,21 @@ async function main() {
     store.set("excalidice.color", me.color);
   };
 
+  // Exploding is off unless turned on, and remembered per live collaboration room (a table's
+  // house rule), or once for rolling alone.
+  const explodeBox = q<HTMLInputElement>(".explode");
+  const explodeKey = () => {
+    const room = location.hash.match(/^#room=([\w-]+),/)?.[1];
+    return room ? `excalidice.explode.${room}` : "excalidice.explode";
+  };
+  const loadExplode = () => (explodeBox.checked = store.get(explodeKey()) === "1");
+  explodeBox.onchange = () => store.set(explodeKey(), explodeBox.checked ? "1" : "0");
+  loadExplode();
+
   const roll = (expr: string) => {
     // the name is whatever Excalidraw's collaboration name is right now
     me.name = excalidrawUsername();
-    const explode = q<HTMLInputElement>(".explode").checked;
+    const explode = explodeBox.checked;
     err.textContent = "";
     if (mode === "waiting") {
       err.textContent = "Still connecting to the live collaboration…";
@@ -362,6 +373,7 @@ async function main() {
       currentHash = location.hash;
       sharedSince = Date.now();
       log.innerHTML = "";
+      loadExplode();
     }
     const next: Mode = !shared
       ? "local"

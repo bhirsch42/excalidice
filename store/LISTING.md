@@ -10,7 +10,7 @@ Everything the developer dashboard asks for, in its order. Upload the zip from `
 >
 > Excalidice adds a dice tool to excalidraw.com's toolbar. Pick a d4, d6, d8, d10, d12 or d20, or type notation like 2d6+1, and the dice tumble across your whole board, then sweep away a few seconds after they land.
 >
-> • Exploding dice, as in Kids on Bikes: roll a die's maximum and a new die leaps out of it and rolls again, adding on. Turn it off with one checkbox.
+> • Exploding dice, as in Kids on Bikes: roll a die's maximum and a new die leaps out of it and rolls again, adding on. Turn it on with one checkbox, remembered for each collaboration room.
 > • Multiplayer with no server: start a live collaboration in Excalidraw and everyone with Excalidice sees the same rolls, in step. Rolls travel over Excalidraw's own end-to-end encrypted channel.
 > • At home on the board: explosions are drawn in Excalidraw's plain hand-drawn style, it follows light and dark mode, and the dice pan and zoom with the canvas.
 > • Rolls carry your Excalidraw collaboration name and a dice color you pick.

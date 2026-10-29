@@ -1,0 +1,21 @@
+# Push a tag like v0.1.0 (matching manifest.json's version) to build the extension and
+# attach excalidice-<version>.zip to a GitHub release.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun test
+      - run: bun run package
+      - run: gh release create "$GITHUB_REF_NAME" excalidice-*.zip --title "$GITHUB_REF_NAME" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
